@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pooja Slot Booking System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Varela+Round&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        :root {
+            --hello-kitty-pink: #FF69B4;
+            --hello-kitty-red: #FF0066;
+        }
+        body {
+            font-family: 'Varela Round', sans-serif;
+            background-color: #FFF0F5;
+        }
+        .clay-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 8px 8px 16px #FFB6C1,
+                       -8px -8px 16px #ffffff;
+            padding: 20px;
+            border: 2px solid #FFB6C1;
+        }
+        .clay-button {
+            background: linear-gradient(145deg, #FFB6C1, #FFF0F5);
+            box-shadow: 5px 5px 10px #FFB6C1,
+                       -5px -5px 10px #ffffff;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        .clay-button:active {
+            box-shadow: inset 5px 5px 10px #FFB6C1,
+                       inset -5px -5px 10px #ffffff;
+        }
+        .selected-slot {
+            background: var(--hello-kitty-red) !important;
+            color: white !important;
+        }
+        .disabled-date {
+            opacity: 0.5;
+            cursor: not-allowed !important;
+            background: #cccccc;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4">
+    <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- User Booking Form -->
+        <div class="clay-card">
+            <div class="flex items-center justify-center mb-4">
+                <i class="bi bi-calendar-heart text-pink-500 text-2xl mr-2"></i>
+                <h1 class="text-2xl font-bold text-center text-pink-500">Pooja Slot Booking</h1>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-gray-700 mb-2">Select Date:</label>
+                <input type="date" id="dateSelector" class="w-full p-3 clay-button cursor-pointer border-2 border-pink-200">
+            </div>
+
+            <div id="slotContainer" class="space-y-4 mb-6">
+                <h2 class="text-lg font-semibold text-gray-700">Available Slots:</h2>
+                <button class="w-full p-4 clay-button text-left hover:bg-pink-100" onclick="selectSlot(this, 'morning')">
+                    <i class="bi bi-sunrise mr-2"></i>Morning: 06:00 AM - 09:30 AM
+                </button>
+                <button class="w-full p-4 clay-button text-left hover:bg-pink-100" onclick="selectSlot(this, 'evening')">
+                    <i class="bi bi-moon mr-2"></i>Evening: 07:00 PM - 09:00 PM
+                </button>
+            </div>
+
+            <button onclick="bookSlot()" class="w-full p-4 clay-button bg-pink-500 text-white font-semibold hover:bg-pink-600">
+                Book Slot
+            </button>
+        </div>
+
+        <!-- Admin Panel -->
+        <div class="clay-card">
+            <div class="flex items-center justify-center mb-4">
+                <i class="bi bi-gear-fill text-pink-500 text-2xl mr-2"></i>
+                <h1 class="text-2xl font-bold text-center text-pink-500">Admin Panel</h1>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-gray-700 mb-2">Block Date:</label>
+                <input type="date" id="adminDateSelector" class="w-full p-3 clay-button cursor-pointer border-2 border-pink-200">
+            </div>
+
+            <div class="space-y-4 mb-6">
+                <h2 class="text-lg font-semibold text-gray-700">Block Slots:</h2>
+                <div class="flex items-center space-x-2 mb-2">
+                    <input type="checkbox" id="blockMorning" class="form-checkbox h-5 w-5 text-pink-500">
+                    <label for="blockMorning">Morning Slot</label>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <input type="checkbox" id="blockEvening" class="form-checkbox h-5 w-5 text-pink-500">
+                    <label for="blockEvening">Evening Slot</label>
+                </div>
+            </div>
+
+            <button onclick="blockSlots()" class="w-full p-4 clay-button bg-pink-500 text-white font-semibold hover:bg-pink-600">
+                Block Selected Slots
+            </button>
+
+            <div class="mt-6">
+                <h2 class="text-lg font-semibold text-gray-700 mb-2">Blocked Slots:</h2>
+                <div id="blockedSlotsList" class="space-y-2 max-h-40 overflow-y-auto p-2 border-2 border-pink-200 rounded">
+                    <!-- Blocked slots will be listed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize blocked slots storage
+        let blockedSlots = JSON.parse(localStorage.getItem('blockedSlots')) || {};
+
+        // Set minimum date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const formattedTomorrow = tomorrow.toISOString().split('T')[0];
+        document.getElementById('dateSelector').min = formattedTomorrow;
+        document.getElementById('adminDateSelector').min = formattedTomorrow;
+
+        let selectedTime = null;
+
+        function updateBlockedSlotsList() {
+            const container = document.getElementById('blockedSlotsList');
+            container.innerHTML = '';
+            
+            Object.entries(blockedSlots).forEach(([date, slots]) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-pink-50 p-2 rounded';
+                div.innerHTML = `
+                    <span>${date}: ${slots.join(', ')}</span>
+                    <button onclick="unblockSlot('${date}')" class="text-pink-500 hover:text-pink-700">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function blockSlots() {
+            const date = document.getElementById('adminDateSelector').value;
+            const morning = document.getElementById('blockMorning').checked;
+            const evening = document.getElementById('blockEvening').checked;
+
+            if (!date) {
+                alert('Please select a date');
+                return;
+            }
+
+            if (!morning && !evening) {
+                alert('Please select at least one slot to block');
+                return;
+            }
+
+            const blockedTimings = [];
+            if (morning) blockedTimings.push('Morning');
+            if (evening) blockedTimings.push('Evening');
+
+            blockedSlots[date] = blockedTimings;
+            localStorage.setItem('blockedSlots', JSON.stringify(blockedSlots));
+            
+            alert('Slots blocked successfully!');
+            updateBlockedSlotsList();
+            
+            // Reset form
+            document.getElementById('adminDateSelector').value = '';
+            document.getElementById('blockMorning').checked = false;
+            document.getElementById('blockEvening').checked = false;
+        }
+
+        function unblockSlot(date) {
+            delete blockedSlots[date];
+            localStorage.setItem('blockedSlots', JSON.stringify(blockedSlots));
+            updateBlockedSlotsList();
+        }
+
+        function selectSlot(element, time) {
+            const date = document.getElementById('dateSelector').value;
+            if (!date) {
+                alert('Please select a date first');
+                return;
+            }
+
+            // Check if slot is blocked
+            if (blockedSlots[date]) {
+                const timeLabel = time === 'morning' ? 'Morning' : 'Evening';
+                if (blockedSlots[date].includes(timeLabel)) {
+                    alert('This slot is not available');
+                    return;
+                }
+            }
+
+            document.querySelectorAll('#slotContainer button').forEach(btn => {
+                btn.classList.remove('selected-slot');
+            });
+            
+            element.classList.add('selected-slot');
+            selectedTime = time;
+        }
+
+        function bookSlot() {
+            const selectedDate = document.getElementById('dateSelector').value;
+            
+            if (!selectedDate) {
+                alert('Please select a date');
+                return;
+            }
+            
+            if (!selectedTime) {
+                alert('Please select a time slot');
+                return;
+            }
+
+            alert(`Booking confirmed!\nDate: ${selectedDate}\nSlot: ${selectedTime === 'morning' ? 'Morning (06:00 AM - 09:30 AM)' : 'Evening (07:00 PM - 09:00 PM)'}`);
+            
+            // Reset form
+            document.getElementById('dateSelector').value = '';
+            document.querySelectorAll('#slotContainer button').forEach(btn => {
+                btn.classList.remove('selected-slot');
+            });
+            selectedTime = null;
+        }
+
+        // Initial load of blocked slots
+        updateBlockedSlotsList();
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
